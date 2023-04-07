@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Runtime.Serialization;
@@ -12,7 +13,6 @@ namespace PM01
     {
         private readonly FileSystemWatcher watcher = new();
         public string Path { get; set; } = string.Empty;
-        public bool IncludeSubdirectories { get; set; } = true;
 
         public bool ObserveChanges { get; set; } = true;
 
@@ -24,7 +24,8 @@ namespace PM01
 
         public bool IsEnabled { get { return watcher.EnableRaisingEvents; } set { watcher.EnableRaisingEvents = value; } }
 
-        public ObservableCollection<LogEntry> EventLogs { get; private set; } = new ObservableCollection<LogEntry>();
+        //Коллекция, представляющая журнал событий
+        public ObservableCollection<LogEntry> EventLog { get; private set; } = new ObservableCollection<LogEntry>();
 
         public ObservationRule(string path)
         {
@@ -37,66 +38,52 @@ namespace PM01
             watcher.Changed += OnChanged;
 
             watcher.Path = Path;
-            watcher.IncludeSubdirectories = IncludeSubdirectories;
+            watcher.IncludeSubdirectories = true;
 
             watcher.EnableRaisingEvents = IsEnabled;
         }
 
-/*        [OnDeserialized]
-        public void PostInit(StreamingContext ctx)
-        {
-            watcher.Created += OnCreated;
-            watcher.Deleted += OnDeleted;
-            watcher.Renamed += OnRenamed;
-            watcher.Changed += OnChanged;
-
-            watcher.Path = Path;
-            watcher.IncludeSubdirectories = IncludeSubdirectories;
-
-            watcher.EnableRaisingEvents = IsEnabled;
-        }*/
-
         private void OnCreated(object source, FileSystemEventArgs e)
         {
-            if (!this.ObserveCreation)
+            if (!ObserveCreation)
                 return;
 
             App.Current.Dispatcher.Invoke(delegate
             {
-                EventLogs.Add(new LogEntry($"Файл создан: {e.FullPath}"));
+                EventLog.Add(new LogEntry($"Файл создан: {e.FullPath}"));
             });
         }
 
         private void OnChanged(object source, FileSystemEventArgs e)
         {
-            if (!this.ObserveChanges)
+            if (!ObserveChanges)
                 return;
 
             App.Current.Dispatcher.Invoke(delegate
             {
-                EventLogs.Add(new LogEntry($"Файл изменён: {e.FullPath}"));
+                EventLog.Add(new LogEntry($"Файл изменён: {e.FullPath}"));
             });
         }
 
         private void OnRenamed(object source, RenamedEventArgs e)
         {
-            if (!this.ObserveRename) 
+            if (!ObserveRename) 
                 return;
 
             App.Current.Dispatcher.Invoke(delegate
             {
-                EventLogs.Add(new LogEntry($"Файл переименован: {e.OldFullPath} -> {e.FullPath}"));
+                EventLog.Add(new LogEntry($"Файл переименован: {e.OldFullPath} -> {e.FullPath}"));
             });
         }
 
         private void OnDeleted(object source, FileSystemEventArgs e)
         {
-            if (!this.ObserveDeletion)
+            if (!ObserveDeletion)
                 return;
 
             App.Current.Dispatcher.Invoke(delegate
             {
-                EventLogs.Add(new LogEntry($"Файл удалён: {e.FullPath}"));
+                EventLog.Add(new LogEntry($"Файл удалён: {e.FullPath}"));
             });
         }
 
@@ -112,14 +99,23 @@ namespace PM01
         }
     }
 
+    //Класс, представляющий запись в журнале событий
+    [Serializable]
     public class LogEntry
     {
         public DateTime Timestamp { get; }
         public string Message { get; } = string.Empty;
 
-        public LogEntry(string message)
+        public LogEntry(string message) : this(DateTime.Now, message)
         {
-            Timestamp = DateTime.Now;
+
+        }
+
+        //Явно указываем конструктор, который будет использоваться при десериализации
+        [JsonConstructor]
+        public LogEntry(DateTime timestamp, string message)
+        {
+            Timestamp = timestamp;
             Message = message;
         }
 

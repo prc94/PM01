@@ -24,21 +24,25 @@ namespace PM01
 
             var vm = new MainViewModel(FindName);
 
+            //Добавляем обработчик события полной инициаилзации
             Loaded += (_, _) =>
             {
-                vm.OnLoaded();
+                vm.OnInitialized();
             };
 
             DataContext = vm;
         }
     }
 
+    //Здесь реализована вся основная логика приложения
     public class MainViewModel : INotifyPropertyChanged
     {
         private Func<string, object?> FindName;
 
         public MainViewModel(Func<string, object?> findFunc)
         {
+            //Передаём функцию FindName из главного окна, чтобы иметь возможность получать доступ к компонентам
+            //Из нашего контекста данных
             FindName = findFunc;
 
             AddRuleCommand = new RelayCommand(AddRule);
@@ -51,21 +55,48 @@ namespace PM01
             Rules.CollectionChanged += (sender, args) =>
             {
                 OnPropertyChanged(nameof(HasRules));
-                if (args.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
-                    SelectedRule = Rules.Last();
-            };
 
+                if (args.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Add)
+                    return;
+
+                SelectedRule = Rules.Last();
+
+                if (args.NewItems != null)
+                    foreach (var item in args.NewItems)
+                    {
+                        var listBoxElement = FindName("logBox");
+                        if (listBoxElement is ListBox listBox && item is ObservationRule rule)
+                        {
+                            if (!listBox.Items.IsEmpty)
+                                listBox.ScrollIntoView(listBox.Items[^1]);
+
+                            //Добавляем обработчик для прокрутки списка событий по мере появления новых
+                            rule.EventLog.CollectionChanged += (_, _) =>
+                            {
+                                //Прокручиваем элемент списка событий только если текущее правило является выбранным
+                                //и список событий не пуст
+                                if (SelectedRule != rule || listBox.Items.IsEmpty)
+                                    return;
+
+                                listBox.ScrollIntoView(listBox.Items[^1]);
+                            };
+                        }
+                    }
+            };
         }
 
-        public void OnLoaded()
+        //Действия, которые должны быть выполнены после полной инициализация приложения
+        public void OnInitialized()
         {
+            //Загружаем правила, при наличии сохранения
             if (File.Exists(RULES_FILE_NAME))
                 LoadRules();
 
+            //Если в списке событий есть элементы, прокручиваем его до конца
             var listBoxElement = FindName("logBox");
             if (listBoxElement is ListBox)
             {
-                var listBox = (ListBox) listBoxElement;
+                var listBox = (ListBox)listBoxElement;
                 if (!listBox.Items.IsEmpty)
                     listBox.ScrollIntoView(listBox.Items[^1]);
             }
@@ -73,9 +104,8 @@ namespace PM01
 
         public ObservableCollection<ObservationRule> Rules { get; }
 
-        private ObservationRule _selectedRule;
-
-        public ObservationRule SelectedRule
+        private ObservationRule? _selectedRule;
+        public ObservationRule? SelectedRule
         {
             get { return _selectedRule; }
             set
@@ -84,28 +114,21 @@ namespace PM01
                 OnPropertyChanged(nameof(SelectedRule));
                 OnPropertyChanged(nameof(HasSelection));
 
-                var listBoxElement = FindName("logBox");
-                if (listBoxElement is ListBox)
-                {
-                    var listBox = (ListBox)listBoxElement;
+                if (_selectedRule == null)
+                    return;
 
+                //При изменении выбранного правила необходимо заново прокрутить список событий вниз
+                var listBoxElement = FindName("logBox");
+                if (listBoxElement is ListBox listBox)
                     if (!listBox.Items.IsEmpty)
                         listBox.ScrollIntoView(listBox.Items[^1]);
-
-                    _selectedRule.EventLogs.CollectionChanged += (_, _) =>
-                    {
-                        if (SelectedRule != value)
-                            return;
-
-                        var listBox = (ListBox)listBoxElement;
-                        listBox.ScrollIntoView(listBox.Items[^1]);
-                    };
-                }
             }
         }
 
+        //Указывает есть ли у нас выбранное правило в настоящий момент
         public bool HasSelection { get => _selectedRule != null; }
 
+        //Укзывает есть ли правила в настоящий момент
         public bool HasRules { get => Rules.Count > 0; }
 
         public ICommand AddRuleCommand { get; }
@@ -114,8 +137,10 @@ namespace PM01
         public ICommand ClearLogsCommand { get; }
         public ICommand SaveRulesCommand { get; }
 
+        //Имя файла для сохранения данных приложения
         private const string RULES_FILE_NAME = "rules.json";
 
+        //Метод десериализации правил из файла json
         private void LoadRules()
         {
             if (File.Exists(RULES_FILE_NAME))
@@ -127,11 +152,12 @@ namespace PM01
                 {
                     var rules = serializer.Deserialize<IEnumerable<ObservationRule>>(reader);
                     if (rules != null) foreach (var rule in rules)
-                       Rules.Add(rule);
+                        Rules.Add(rule);
                 }
             }
         }
 
+        //Метод сериализации правил в файл json
         private void SaveRules()
         {
             JsonSerializer serializer = new();
@@ -165,6 +191,7 @@ namespace PM01
             }
         }
 
+        //Обработчик события изменения для отслеживаемых свойств
         public event PropertyChangedEventHandler PropertyChanged;
 
         protected void OnPropertyChanged(string propertyName)
@@ -174,6 +201,7 @@ namespace PM01
 
     }
 
+    //Типовая реализация интерфейса ICommand
     public class RelayCommand : ICommand
     {
         private Action action;
