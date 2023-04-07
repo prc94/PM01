@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PM01": {
+      "commandName": "Project",
+      "commandLineArgs": "--console"
+    }
+  }
+}
