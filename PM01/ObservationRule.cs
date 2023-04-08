@@ -2,8 +2,6 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Runtime.Serialization;
-using System.Windows.Shapes;
 
 namespace PM01
 {
@@ -12,6 +10,7 @@ namespace PM01
     public class ObservationRule
     {
         private readonly FileSystemWatcher watcher = new();
+
         public string Path { get; set; } = string.Empty;
 
         public bool ObserveChanges { get; set; } = true;
@@ -106,6 +105,7 @@ namespace PM01
         public DateTime Timestamp { get; }
         public string Message { get; } = string.Empty;
 
+        //Перегрузка контсруктора для удобства использования в коде
         public LogEntry(string message) : this(DateTime.Now, message)
         {
 

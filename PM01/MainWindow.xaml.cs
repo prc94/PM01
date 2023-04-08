@@ -24,7 +24,7 @@ namespace PM01
 
             var vm = new MainViewModel(FindName);
 
-            //Добавляем обработчик события полной инициаилзации
+            //Добавляем обработчик события завершения инициаилзации
             Loaded += (_, _) =>
             {
                 vm.OnInitialized();
@@ -34,16 +34,16 @@ namespace PM01
         }
     }
 
-    //Здесь реализована вся основная логика приложения
+    //Здесь реализована основная логика приложения
     public class MainViewModel : INotifyPropertyChanged
     {
-        private Func<string, object?> FindName;
+        private readonly Func<string, object?> FindName;
 
-        public MainViewModel(Func<string, object?> findFunc)
+        public MainViewModel(Func<string, object?> findNameFunc)
         {
-            //Передаём функцию FindName из главного окна, чтобы иметь возможность получать доступ к компонентам
-            //Из нашего контекста данных
-            FindName = findFunc;
+            //Передаём функцию FindName из класса главного окна, чтобы иметь возможность получать доступ к компонентам интерфейса
+            //из нашего контекста данных
+            FindName = findNameFunc;
 
             AddRuleCommand = new RelayCommand(AddRule);
             RemoveRuleCommand = new RelayCommand(RemoveSelectedRule);
@@ -52,7 +52,7 @@ namespace PM01
 
             Rules = new ObservableCollection<ObservationRule>();
 
-            Rules.CollectionChanged += (sender, args) =>
+            Rules.CollectionChanged += (_, args) =>
             {
                 OnPropertyChanged(nameof(HasRules));
 
@@ -92,7 +92,7 @@ namespace PM01
             if (File.Exists(RULES_FILE_NAME))
                 LoadRules();
 
-            //Если в списке событий есть элементы, прокручиваем его до конца
+            //Если в журнале событий есть элементы (они могут появится после загрузки правил), прокручиваем его до конца
             var listBoxElement = FindName("logBox");
             if (listBoxElement is ListBox)
             {
@@ -134,7 +134,6 @@ namespace PM01
         public ICommand AddRuleCommand { get; }
         public ICommand RemoveRuleCommand { get; }
         public ICommand RemoveSelectedRuleCommand { get; }
-        public ICommand ClearLogsCommand { get; }
         public ICommand SaveRulesCommand { get; }
 
         //Имя файла для сохранения данных приложения
@@ -151,8 +150,9 @@ namespace PM01
                 using (JsonReader reader = new JsonTextReader(sr))
                 {
                     var rules = serializer.Deserialize<IEnumerable<ObservationRule>>(reader);
-                    if (rules != null) foreach (var rule in rules)
-                        Rules.Add(rule);
+                    if (rules != null) 
+                        foreach (var rule in rules)
+                            Rules.Add(rule);
                 }
             }
         }
@@ -172,16 +172,16 @@ namespace PM01
 
         private void AddRule()
         {
-            var dialog = new Microsoft.WindowsAPICodePack.Dialogs.CommonOpenFileDialog();
-            dialog.IsFolderPicker = true;
-            dialog.Title = "Select a folder to watch";
-            dialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            if (dialog.ShowDialog() == Microsoft.WindowsAPICodePack.Dialogs.CommonFileDialogResult.Ok)
+            var dialog = new Microsoft.WindowsAPICodePack.Dialogs.CommonOpenFileDialog
             {
-                ObservationRule rule = new(dialog.FileName);
-                Rules.Add(rule);
-            }
+                IsFolderPicker = true,
+                Title = "Выбор папки для слежения",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+            };
+            if (dialog.ShowDialog() == Microsoft.WindowsAPICodePack.Dialogs.CommonFileDialogResult.Ok)
+                Rules.Add(new(dialog.FileName));
         }
+
         private void RemoveSelectedRule()
         {
             if (SelectedRule != null)
@@ -192,7 +192,7 @@ namespace PM01
         }
 
         //Обработчик события изменения для отслеживаемых свойств
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         protected void OnPropertyChanged(string propertyName)
         {
@@ -213,21 +213,20 @@ namespace PM01
             this.canExecute = canExecute;
         }
 
-        public event EventHandler CanExecuteChanged
+        public event EventHandler? CanExecuteChanged
         {
             add { CommandManager.RequerySuggested += value; }
             remove { CommandManager.RequerySuggested -= value; }
         }
 
-        public bool CanExecute(object parameter)
+        public bool CanExecute(object? parameter)
         {
             return canExecute == null || canExecute();
         }
 
-        public void Execute(object parameter)
+        public void Execute(object? parameter)
         {
             action();
         }
     }
-
 }
